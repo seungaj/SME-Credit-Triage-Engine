@@ -5,7 +5,7 @@
 > **Target segment:** SMEs with $150K–$5M annual revenue  
 > **Architecture version:** v2.0 — stateful, rule-based, explainable
 
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-GitHub%20Pages-00d4ff?style=flat-square&logo=github)](https://YOUR_USERNAME.github.io/sme-credit-triage-engine/)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-GitHub%20Pages-00d4ff?style=flat-square&logo=github)](https://seungaj.github.io/sme-credit-triage-engine/)
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 [![Architecture](https://img.shields.io/badge/Architecture-Rule--Based%20%2B%20EWMA-blue?style=flat-square)]()
 [![Jurisdiction](https://img.shields.io/badge/Jurisdiction-Ontario%2C%20Canada-red?style=flat-square)]()
