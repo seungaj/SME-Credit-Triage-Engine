@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SME Credit Triage Engine</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#0a0e14;--panel:#0f1520;--panel2:#141c2a;--panel3:#192236;
+  --border:#1e2d44;--border2:#253550;
+  --accent:#00d4ff;--accent2:#0088cc;
+  --green:#00e676;--green2:#00994d;--gbg:rgba(0,230,118,.08);
+  --yellow:#ffd600;--yellow2:#cc9900;--ybg:rgba(255,214,0,.08);
+  --red:#ff3d3d;--red2:#cc0000;--rbg:rgba(255,61,61,.08);
+  --orange:#ff8c00;
+  --text:#c8d8e8;--text2:#7898b8;--text3:#3a5570;--white:#e8f4ff;
+  --mono:'IBM Plex Mono',monospace;
+  --sans:'IBM Plex Sans',sans-serif;
+  --cond:'IBM Plex Sans Condensed',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13px;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,212,255,.02) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,.02) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0}
+
+/* ── HEADER ── */
+header{background:linear-gradient(135deg,#060c18,#0a1525);border-bottom:1px solid var(--border);padding:0 20px;display:flex;align-items:center;height:50px;gap:16px;flex-shrink:0;position:relative;z-index:10;box-shadow:0 2px 20px rgba(0,0,0,.5)}
+.logo{font-family:var(--mono);font-weight:600;font-size:13px;color:var(--accent);letter-spacing:.05em;display:flex;align-items:center;gap:8px}
+.logo-icon{width:26px;height:26px;border:2px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--accent)}
+.hd{width:1px;height:22px;background:var(--border2)}
+.hdr-label{font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:.1em;text-transform:uppercase}
+.hdr-badge{font-family:var(--mono);font-size:9px;padding:2px 8px;border:1px solid;letter-spacing:.08em;text-transform:uppercase}
+.badge-live{color:var(--green);border-color:var(--green2);background:var(--gbg)}
+.badge-v{color:var(--text3);border-color:var(--border)}
+.spacer{flex:1}
+.cycle-grp{display:flex;background:var(--panel2);border:1px solid var(--border)}
+.c-btn{font-family:var(--mono);font-size:9px;padding:5px 12px;background:none;border:none;color:var(--text3);cursor:pointer;letter-spacing:.08em;text-transform:uppercase;border-right:1px solid var(--border);transition:all .15s}
+.c-btn:last-child{border-right:none}
+.c-btn.active{background:var(--accent2);color:var(--white)}
+.c-btn:hover:not(.active){color:var(--text)}
+.run-btn{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:8px 18px;background:var(--accent2);color:var(--white);border:none;cursor:pointer;transition:all .2s;clip-path:polygon(7px 0%,100% 0%,100% 100%,0% 100%,0% 7px)}
+.run-btn:hover{background:var(--accent);color:#000}
+.run-btn.running{background:var(--border2);color:var(--text3);pointer-events:none}
+
+/* ── BODY LAYOUT ── */
+.body-row{flex:1;display:grid;grid-template-columns:256px 1fr 300px;overflow:hidden;position:relative;z-index:1}
+
+/* ── LEFT PANEL ── */
+.left{background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.lp-hdr{font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:.14em;text-transform:uppercase;padding:12px 14px 10px;border-bottom:1px solid var(--border)}
+.borrower-list{flex:1;overflow-y:auto}
+.bcard{padding:12px 14px;border-left:3px solid transparent;border-bottom:1px solid var(--border);cursor:pointer;transition:all .15s}
+.bcard:hover{background:rgba(255,255,255,.03)}
+.bcard.active{background:rgba(0,212,255,.05)}
+.bcard.tier-green{border-left-color:var(--green)}
+.bcard.tier-yellow{border-left-color:var(--yellow)}
+.bcard.tier-red{border-left-color:var(--red)}
+.bc-row{display:flex;justify-content:space-between;align-items:flex-start}
+.bc-name{font-family:var(--cond);font-size:13px;font-weight:700;color:var(--white);letter-spacing:.02em}
+.bc-score{font-family:var(--mono);font-size:20px;font-weight:600;line-height:1}
+.tier-green .bc-score{color:var(--green)}.tier-yellow .bc-score{color:var(--yellow)}.tier-red .bc-score{color:var(--red)}
+.bc-sector{font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:2px}
+.bc-badges{display:flex;align-items:center;gap:5px;margin-top:5px}
+.tier-pill{font-family:var(--mono);font-size:8px;padding:2px 6px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+.tier-green .tier-pill{color:var(--green);border:1px solid var(--green2);background:var(--gbg)}
+.tier-yellow .tier-pill{color:var(--yellow);border:1px solid var(--yellow2);background:var(--ybg)}
+.tier-red .tier-pill{color:var(--red);border:1px solid var(--red2);background:var(--rbg)}
+.band-label{font-family:var(--mono);font-size:8px;color:var(--text3)}
+
+/* boC footer */
+.left-footer{padding:12px 14px;border-top:1px solid var(--border);flex-shrink:0}
+.lf-label{font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;margin-bottom:3px}
+.lf-val{font-family:var(--mono);font-size:20px;color:var(--accent)}
+.lf-sub{font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:1px}
+
+/* ── CENTER ── */
+.center{display:flex;flex-direction:column;overflow:hidden}
+.center-head{background:var(--panel2);border-bottom:1px solid var(--border);padding:13px 20px;display:flex;align-items:flex-start;gap:16px;flex-shrink:0}
+.ch-name{font-family:var(--cond);font-size:20px;font-weight:800;color:var(--white);letter-spacing:.02em;line-height:1}
+.ch-sub{font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:4px}
+.ch-band{font-family:var(--mono);font-size:8px;padding:2px 7px;border:1px solid var(--border2);color:var(--text2);margin-top:4px;display:inline-block;letter-spacing:.05em}
+.ch-spacer{flex:1}
+.status-badge{font-family:var(--mono);font-size:10px;font-weight:600;padding:5px 14px;border:1px solid;letter-spacing:.08em;text-transform:uppercase;align-self:center}
+.badge-auto{color:var(--green);border-color:var(--green2);background:var(--gbg)}
+.badge-review{color:var(--yellow);border-color:var(--yellow2);background:var(--ybg)}
+.badge-senior{color:var(--orange);border-color:#7c4400;background:rgba(255,140,0,.08)}
+.badge-freeze{color:var(--red);border-color:var(--red2);background:var(--rbg)}
+
+.ew-bar{background:rgba(255,214,0,.06);border-bottom:1px solid var(--yellow2);padding:6px 20px;display:none;align-items:center;gap:8px;flex-shrink:0}
+.ew-bar.show{display:flex}
+.ew-text{font-family:var(--mono);font-size:9px;color:var(--yellow)}
+
+.center-scroll{flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border2) transparent}
+.cscroll-inner{padding:14px 18px;display:flex;flex-direction:column;gap:12px}
+
+/* kpi row */
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.kpi{background:var(--panel);border:1px solid var(--border);padding:12px 14px}
+.kpi-label{font-family:var(--mono);font-size:8px;color:var(--text3);letter-spacing:.12em;text-transform:uppercase;margin-bottom:4px}
+.kpi-val{font-family:var(--cond);font-size:22px;font-weight:800;line-height:1;color:var(--white)}
+.kpi-val.pos{color:var(--green)}.kpi-val.neg{color:var(--red)}.kpi-val.acc{color:var(--accent)}
+.kpi-sub{font-family:var(--mono);font-size:9px;color:var(--text2);margin-top:3px}
+
+/* mid row */
+.mid-row{display:grid;grid-template-columns:1fr 320px;gap:8px}
+.chart-panel{background:var(--panel);border:1px solid var(--border);padding:14px 16px}
+.stress-panel{background:var(--panel);border:1px solid var(--border);padding:14px 16px}
+.panel-title{font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:.14em;text-transform:uppercase;margin-bottom:10px}
+.chart-wrap{position:relative;height:160px}
+
+/* stress table */
+.st{width:100%;border-collapse:collapse}
+.st th{font-family:var(--mono);font-size:8px;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;padding:4px 0;border-bottom:1px solid var(--border);text-align:left}
+.st th:not(:first-child){text-align:right}
+.st td{font-family:var(--mono);font-size:10px;padding:7px 0;border-bottom:1px solid var(--border);color:var(--text)}
+.st td:not(:first-child){text-align:right}
+.st tr:last-child td{border-bottom:none}
+.st .scen{color:var(--text2);font-size:9px}
+.sp{color:var(--green);font-weight:600}.sw{color:var(--yellow);font-weight:600}.sf{color:var(--red);font-weight:600}
+.neg{color:var(--red)}
+
+/* pipeline */
+.pipe-panel{background:var(--panel);border:1px solid var(--border);padding:12px 16px}
+.pipe-track{display:flex;align-items:center;margin-top:8px}
+.pipe-step{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;position:relative}
+.pipe-step:not(:last-child)::after{content:'';position:absolute;top:18px;left:56%;width:88%;height:1px;background:var(--border2)}
+.pipe-icon{width:36px;height:36px;border:2px solid var(--border2);background:var(--panel2);display:flex;align-items:center;justify-content:center;font-size:14px;transition:all .3s;position:relative;z-index:1}
+.pipe-step.done .pipe-icon{border-color:var(--green2);background:var(--gbg)}
+.pipe-step.active .pipe-icon{border-color:var(--accent2);background:rgba(0,212,255,.1);box-shadow:0 0 10px rgba(0,212,255,.25)}
+.pipe-lbl{font-family:var(--mono);font-size:8px;color:var(--text3);text-align:center}
+.pipe-step.done .pipe-lbl{color:var(--green)}.pipe-step.active .pipe-lbl{color:var(--accent)}
+
+/* decision */
+.decision{border:1px solid;padding:16px 18px}
+.decision.auto{border-color:var(--green2);background:rgba(0,230,118,.04)}
+.decision.review{border-color:var(--yellow2);background:rgba(255,214,0,.04)}
+.decision.senior{border-color:#7c4400;background:rgba(255,140,0,.04)}
+.decision.freeze{border-color:var(--red2);background:rgba(255,61,61,.04)}
+.dec-kicker{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:4px}
+.dec-kicker.auto{color:var(--green)}.dec-kicker.review{color:var(--yellow)}.dec-kicker.senior{color:var(--orange)}.dec-kicker.freeze{color:var(--red)}
+.dec-title{font-family:var(--cond);font-size:24px;font-weight:800;color:var(--white);margin-bottom:6px}
+.dec-reason{font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.5}
+.dec-bullets{display:flex;flex-direction:column;gap:3px}
+.dec-bullet{font-family:var(--mono);font-size:9px;color:var(--text2);display:flex;align-items:center;gap:6px}
+.dec-bullet::before{content:'→';color:var(--text3)}
+
+/* term cards */
+.tc-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.tc{background:var(--panel2);border:1px solid var(--border);padding:12px 14px;position:relative;overflow:hidden}
+.tc::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.tc.rate::before{background:linear-gradient(90deg,var(--yellow),transparent)}
+.tc.limit::before{background:linear-gradient(90deg,var(--accent2),transparent)}
+.tc.cov::before{background:linear-gradient(90deg,var(--orange),transparent)}
+.tc.nxt::before{background:linear-gradient(90deg,#8855ff,transparent)}
+.tc-lbl{font-family:var(--mono);font-size:8px;color:var(--text3);letter-spacing:.12em;text-transform:uppercase;margin-bottom:6px;display:flex;align-items:center;gap:5px}
+.cad{font-size:7px;padding:1px 4px;border:1px solid;letter-spacing:.04em}
+.cad-m{color:var(--accent);border-color:var(--accent2)}
+.cad-i{color:var(--orange);border-color:#7c4400}
+.cad-c{color:#b388ff;border-color:#5533aa}
+.tc-val{font-family:var(--cond);font-size:22px;font-weight:800;line-height:1;color:var(--white)}
+.tc-delta{font-family:var(--mono);font-size:9px;margin-top:3px}
+.tc-note{font-family:var(--mono);font-size:8px;color:var(--text3);margin-top:5px;padding-top:5px;border-top:1px solid var(--border);line-height:1.5}
+.cov-tag{display:inline-flex;align-items:center;gap:3px;font-family:var(--mono);font-size:8px;padding:2px 6px;border:1px solid;margin-top:3px}
+.cov-healthy{color:var(--green);border-color:var(--green2);background:var(--gbg)}
+.cov-monitor{color:var(--accent);border-color:var(--accent2);background:rgba(0,212,255,.06)}
+.cov-escalate{color:var(--yellow);border-color:var(--yellow2);background:var(--ybg)}
+.cov-senior{color:var(--orange);border-color:#7c4400;background:rgba(255,140,0,.08)}
+.cov-workout{color:var(--red);border-color:var(--red2);background:var(--rbg)}
+
+/* score bar */
+.score-bar-row{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.sbar-bg{flex:1;height:7px;background:var(--border)}
+.sbar-fill{height:100%;background:linear-gradient(90deg,var(--red),var(--yellow) 35%,var(--green) 65%,var(--accent));transition:width .6s}
+.score-num{font-family:var(--mono);font-size:18px;font-weight:600;white-space:nowrap}
+.tier-tag{font-family:var(--mono);font-size:10px;padding:2px 7px;border:1px solid;font-weight:600}
+.tg{color:var(--green);border-color:var(--green2);background:var(--gbg)}
+.ty{color:var(--yellow);border-color:var(--yellow2);background:var(--ybg)}
+.tr{color:var(--red);border-color:var(--red2);background:var(--rbg)}
+
+/* score breakdown */
+.score-breakdown{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px}
+.sbd{font-family:var(--mono);font-size:9px;color:var(--text2)}
+.sbd span{color:var(--text);font-weight:500}
+
+/* history table */
+.hist-panel{background:var(--panel);border:1px solid var(--border);padding:14px 16px}
+.ht{width:100%;border-collapse:collapse}
+.ht th{font-family:var(--mono);font-size:8px;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;padding:4px 0;border-bottom:1px solid var(--border);text-align:left}
+.ht th:not(:first-child){text-align:right}
+.ht td{font-family:var(--mono);font-size:10px;padding:8px 0;border-bottom:1px solid var(--border)}
+.ht td:not(:first-child){text-align:right}
+.ht tr:last-child td{border-bottom:none}
+.ht tr.cur td{color:var(--white)}
+.act{font-size:8px;padding:1px 6px;border:1px solid;font-weight:600;letter-spacing:.05em}
+.a-auto{color:var(--green);border-color:var(--green2);background:var(--gbg)}
+.a-cut{color:var(--accent);border-color:var(--accent2);background:rgba(0,212,255,.06)}
+.a-hold{color:var(--text3);border-color:var(--border)}
+.a-human{color:var(--yellow);border-color:var(--yellow2);background:var(--ybg)}
+.a-freeze{color:var(--red);border-color:var(--red2);background:var(--rbg)}
+.hist-footer{font-family:var(--mono);font-size:8px;color:var(--text3);margin-top:10px;text-align:center;line-height:1.8}
+
+/* memo */
+.memo-panel{background:var(--panel);border:1px solid var(--border);padding:14px 16px}
+.memo-body{font-family:var(--mono);font-size:9px;color:var(--text2);line-height:1.8;white-space:pre-wrap;margin-top:6px}
+.memo-body strong{color:var(--white)}
+
+/* ── RIGHT PANEL ── */
+.right{background:var(--panel);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.rp-hdr{font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:.14em;text-transform:uppercase;padding:12px 14px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:7px}
+.audit-dot{width:6px;height:6px;background:var(--green);border-radius:50%;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.audit-log{flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border2) transparent}
+.log-entry{padding:7px 12px;border-left:2px solid transparent;transition:background .1s}
+.log-entry:hover{background:rgba(255,255,255,.02)}
+.log-entry.li{border-left-color:var(--accent2)}
+.log-entry.lw{border-left-color:var(--yellow2)}
+.log-entry.la{border-left-color:var(--red2)}
+.log-entry.lo{border-left-color:var(--green2)}
+.log-ts{font-family:var(--mono);font-size:8px;color:var(--text3);margin-bottom:2px}
+.log-msg{font-family:var(--mono);font-size:9px;color:var(--text);line-height:1.5}
+.log-msg .hl{color:var(--accent)}.log-msg .hg{color:var(--green)}.log-msg .hy{color:var(--yellow)}.log-msg .hr{color:var(--red)}
+.log-div{height:1px;background:var(--border);margin:5px 12px}
+.empty-log{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:8px;opacity:.35}
+.empty-icon{font-size:28px}
+.empty-txt{font-family:var(--mono);font-size:10px;color:var(--text3);text-align:center}
+
+/* warn section */
+.warn-section{border-top:1px solid var(--border);padding:10px 12px;flex-shrink:0}
+.warn-hdr{font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:.12em;text-transform:uppercase;margin-bottom:7px}
+.wtag{display:inline-flex;align-items:center;gap:3px;font-family:var(--mono);font-size:8px;padding:2px 6px;margin:2px;border:1px solid}
+.wtag.wa{color:var(--yellow);border-color:var(--yellow2);background:var(--ybg)}
+.wtag.wc{color:var(--red);border-color:var(--red2);background:var(--rbg)}
+.wtag.wn{color:var(--text3);border-color:var(--border)}
+
+/* overlay */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:999;opacity:0;pointer-events:none;transition:opacity .2s}
+.overlay.on{opacity:1;pointer-events:all}
+.proc-box{background:var(--panel);border:1px solid var(--accent2);padding:26px 38px;min-width:350px}
+.proc-title{font-family:var(--mono);font-size:11px;color:var(--accent);letter-spacing:.1em;text-transform:uppercase;margin-bottom:14px}
+.ps{font-family:var(--mono);font-size:10px;color:var(--text3);padding:3px 0;display:flex;align-items:center;gap:7px;transition:color .25s}
+.ps.act{color:var(--accent)}.ps.dn{color:var(--green)}
+.ps-ic{width:12px;text-align:center}
+
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+.fi{animation:fadeIn .35s ease forwards}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+</style>
+</head>
+<body>
+
+<div class="overlay" id="overlay">
+  <div class="proc-box">
+    <div class="proc-title">▶ Running Monthly Risk Assessment</div>
+    <div id="ps-list"></div>
+  </div>
+</div>
+
+<!-- HEADER -->
+<header>
+  <div class="logo"><div class="logo-icon">▣</div>CU/DT ENGINE</div>
+  <div class="hd"></div>
+  <div class="hdr-label">Ontario SME · FSRA Non-Bank · v2.0</div>
+  <div class="hdr-badge badge-live">● LIVE</div>
+  <div class="hdr-badge badge-v">Monthly Risk Assessment</div>
+  <div class="spacer"></div>
+  <div class="cycle-grp">
+    <button class="c-btn active" onclick="setCycle('monthly')">Monthly</button>
+    <button class="c-btn" onclick="setCycle('quarterly')">Quarterly</button>
+  </div>
+  <button class="run-btn" id="runBtn" onclick="runCycle()">▶ Run Monthly Re-Score</button>
+</header>
+
+<!-- BODY -->
+<div class="body-row">
+
+  <!-- LEFT -->
+  <div class="left">
+    <div class="lp-hdr">Active Portfolio · 3 Borrowers</div>
+    <div class="borrower-list" id="borrowerList"></div>
+    <div class="left-footer">
+      <div class="lf-label">BoC Base Rate</div>
+      <div class="lf-val">5.50%</div>
+      <div class="lf-sub">Overnight + 150 bps floor</div>
+    </div>
+  </div>
+
+  <!-- CENTER -->
+  <div class="center">
+    <div class="center-head">
+      <div>
+        <div class="ch-name" id="chName">Maple Brew Co.</div>
+        <div class="ch-sub" id="chSub">Loan #CA-2024-0441 · $350K Facility · Food &amp; Beverage</div>
+        <div class="ch-band" id="chBand">band_500K_plus</div>
+      </div>
+      <div class="ch-spacer"></div>
+      <div class="status-badge badge-auto" id="statusBadge">AUTO-APPROVED</div>
+    </div>
+    <div class="ew-bar" id="ewBar"><span style="color:var(--yellow);font-size:11px">⚠</span><span class="ew-text" id="ewText"></span></div>
+    <div class="center-scroll">
+      <div class="cscroll-inner" id="centerContent"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT -->
+  <div class="right">
+    <div class="rp-hdr"><div class="audit-dot"></div>AUDIT LOG<span style="margin-left:auto;font-size:8px;color:var(--text3)" id="logCnt">0 entries</span></div>
+    <div class="audit-log" id="auditLog">
+      <div class="empty-log"><div class="empty-icon">◫</div><div class="empty-txt">No entries yet.<br>Run a cycle to begin.</div></div>
+    </div>
+    <div class="warn-section">
+      <div class="warn-hdr">Early Warning Indicators</div>
+      <div id="warnTags"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── DATA ──────────────────────────────────────────────────────────────────────
+const BW={
+  maple:{id:'maple',name:'Maple Brew Co.',sector:'Craft Brewery & Taproom',loan:'CA-2024-0441',revenue:800,cashBalance:285000,creditLimit:350,utilisation:42,ar:145000,ap:88000,weeklyNetCF:17000,runway:13,dscr:1.82,ar90:4,cv:.12,overdue:0,nsf:0,currentRate:690,currentLimit:350,coverage:142,prevScore:78,history:[{m:'Mar 2026',s:82,t:'Green A',r:6.90,l:350,c:1.42,a:'auto'},{m:'Feb 2026',s:80,t:'Green A',r:7.10,l:350,c:1.44,a:'cut'},{m:'Jan 2026',s:78,t:'Green B',r:7.50,l:340,c:1.46,a:'auto'},{m:'Dec 2025',s:74,t:'Yellow A',r:8.00,l:320,c:1.50,a:'cut'},{m:'Nov 2025',s:70,t:'Yellow A',r:8.40,l:310,c:1.52,a:'hold'},{m:'Oct 2025',s:65,t:'Green B',r:8.40,l:310,c:1.55,a:'human'}]},
+  nova:{id:'nova',name:'Nova Freight Ltd.',sector:'Logistics & Transport',loan:'CA-2024-0318',revenue:1200,cashBalance:87000,creditLimit:520,utilisation:74,ar:210000,ap:180000,weeklyNetCF:-4200,runway:5.5,dscr:.97,ar90:29,cv:.30,overdue:2,nsf:1,currentRate:1040,currentLimit:520,coverage:96,prevScore:58,history:[{m:'Mar 2026',s:47,t:'Yellow B',r:10.40,l:520,c:.96,a:'human'},{m:'Feb 2026',s:52,t:'Yellow A',r:9.80,l:530,c:1.02,a:'hold'},{m:'Jan 2026',s:55,t:'Yellow A',r:9.50,l:540,c:1.05,a:'auto'},{m:'Dec 2025',s:58,t:'Yellow B',r:9.80,l:520,c:1.00,a:'cut'},{m:'Nov 2025',s:62,t:'Yellow A',r:9.40,l:540,c:1.08,a:'auto'},{m:'Oct 2025',s:60,t:'Yellow A',r:9.60,l:520,c:1.04,a:'hold'}]},
+  strata:{id:'strata',name:'Strata Build Inc.',sector:'General Contracting',loan:'CA-2023-0891',revenue:2100,cashBalance:44000,creditLimit:680,utilisation:88,ar:580000,ap:620000,weeklyNetCF:-28000,runway:2.2,dscr:.51,ar90:56,cv:.55,overdue:22,nsf:2,currentRate:1540,currentLimit:680,coverage:71,prevScore:38,history:[{m:'Mar 2026',s:24,t:'Red',r:15.40,l:680,c:.71,a:'freeze'},{m:'Feb 2026',s:31,t:'Red',r:14.20,l:680,c:.76,a:'human'},{m:'Jan 2026',s:35,t:'Yellow B',r:13.50,l:700,c:.80,a:'human'},{m:'Dec 2025',s:38,t:'Yellow B',r:13.00,l:720,c:.84,a:'hold'},{m:'Nov 2025',s:42,t:'Yellow A',r:12.50,l:730,c:.88,a:'hold'},{m:'Oct 2025',s:45,t:'Yellow A',r:12.00,l:740,c:.92,a:'auto'}]}
+};
+const PIPE=[{ic:'📥',lb:'Ingest'},{ic:'⚙️',lb:'Normalise'},{ic:'📊',lb:'Forecast'},{ic:'⚡',lb:'Stress'},{ic:'🎯',lb:'Score'},{ic:'🛡️',lb:'Coverage'},{ic:'💰',lb:'Terms'},{ic:'🔒',lb:'Guardrails'},{ic:'🔀',lb:'Route'},{ic:'📋',lb:'Audit'}];
+let cur='maple',cycle='monthly',logCount=0,chartInst=null;
+
+// ── ASYMMETRIC HYSTERESIS STATE TRACKER (Section A5/B1) ──────────────────────
+// Downgrade requires 2 consecutive months below threshold (T=2).
+// Upgrade fires immediately (T=1).
+// activeTier drives all pricing adders and routing decisions.
+// pendingDowngrade holds the raw-score tier when a first breach is detected.
+// consecutiveMonthsBelow counts how many cycles the breach has persisted.
+const TIER_RANK={Red:0,'Yellow B':1,'Yellow A':2,'Green B':3,'Green A':4};
+const TIER_ORDER=['Red','Yellow B','Yellow A','Green B','Green A'];
+
+const HST={
+  maple:{activeTier:'Green A', pendingDowngrade:null, consecutiveMonthsBelow:0},
+  nova: {activeTier:'Yellow B',pendingDowngrade:null, consecutiveMonthsBelow:0},
+  strata:{activeTier:'Red',   pendingDowngrade:null, consecutiveMonthsBelow:0}
+};
+
+/**
+ * rawTierFromScore — pure stateless lookup, no side effects.
+ * Used only to determine what the score would map to without history.
+ */
+function rawTierFromScore(s){
+  if(s>=80)return'Green A';
+  if(s>=65)return'Green B';
+  if(s>=50)return'Yellow A';
+  if(s>=35)return'Yellow B';
+  return'Red';
+}
+
+/**
+ * resolveTier — stateful asymmetric hysteresis resolution.
+ * Mutates HST[id] and returns a rich result object so callers get
+ * full visibility into what happened this cycle.
+ *
+ * Returns:
+ *   activeTier    — the tier that governs pricing this cycle
+ *   rawTier       — what the score alone would produce (stateless)
+ *   event         — 'upgrade' | 'downgrade' | 'hysteresis_pending' |
+ *                   'hysteresis_cleared' | 'stable'
+ *   pendingDowngrade — tier waiting to finalise (or null)
+ *   consecutiveMonthsBelow — how many cycles the pending breach has lasted
+ */
+function resolveTier(id, score){
+  const st=HST[id];
+  const rawTier=rawTierFromScore(score);
+  const currentRank=TIER_RANK[st.activeTier];
+  const rawRank=TIER_RANK[rawTier];
+
+  // ── T=1: UPGRADE — immediate, clears any pending downgrade ──
+  if(rawRank > currentRank){
+    const prev=st.activeTier;
+    st.activeTier=rawTier;
+    st.pendingDowngrade=null;
+    st.consecutiveMonthsBelow=0;
+    return{activeTier:st.activeTier,rawTier,event:'upgrade',prevTier:prev,
+           pendingDowngrade:null,consecutiveMonthsBelow:0};
+  }
+
+  // ── T=2: DOWNGRADE — requires two consecutive months below threshold ──
+  if(rawRank < currentRank){
+    if(st.pendingDowngrade && TIER_RANK[st.pendingDowngrade] >= rawRank){
+      // Second (or further) consecutive breach — finalise downgrade
+      st.consecutiveMonthsBelow++;
+      if(st.consecutiveMonthsBelow >= 2){
+        const prev=st.activeTier;
+        st.activeTier=rawTier;
+        st.pendingDowngrade=null;
+        st.consecutiveMonthsBelow=0;
+        return{activeTier:st.activeTier,rawTier,event:'downgrade',prevTier:prev,
+               pendingDowngrade:null,consecutiveMonthsBelow:0};
+      }
+      // Breach continues but hasn't hit 2 yet (shouldn't normally happen with
+      // the >=2 check, but guards future multi-cycle extensions)
+      return{activeTier:st.activeTier,rawTier,event:'hysteresis_pending',prevTier:st.activeTier,
+             pendingDowngrade:st.pendingDowngrade,consecutiveMonthsBelow:st.consecutiveMonthsBelow};
+    }
+    // First breach — enter pending state, preserve current tier
+    st.pendingDowngrade=rawTier;
+    st.consecutiveMonthsBelow=1;
+    return{activeTier:st.activeTier,rawTier,event:'hysteresis_pending',prevTier:st.activeTier,
+           pendingDowngrade:rawTier,consecutiveMonthsBelow:1};
+  }
+
+  // ── STABLE — score matches or exceeds active tier, clear any pending ──
+  if(st.pendingDowngrade){
+    // Score recovered — cancel the pending downgrade
+    st.pendingDowngrade=null;
+    st.consecutiveMonthsBelow=0;
+    return{activeTier:st.activeTier,rawTier,event:'hysteresis_cleared',prevTier:st.activeTier,
+           pendingDowngrade:null,consecutiveMonthsBelow:0};
+  }
+  return{activeTier:st.activeTier,rawTier,event:'stable',prevTier:st.activeTier,
+         pendingDowngrade:null,consecutiveMonthsBelow:0};
+}
+
+/** CSS colour class from a tier string */
+function tC(tier){
+  if(tier==='Green A'||tier==='Green B')return'green';
+  if(tier==='Yellow A'||tier==='Yellow B')return'yellow';
+  return'red';
+}
+
+// ── ENGINE ────────────────────────────────────────────────────────────────────
+function rb(r){if(r<150)return{key:'sub_150K_ineligible',floor:0,cal:'none'};if(r<500)return{key:'band_150K_499K',floor:15,cal:'sub'};return{key:'band_500K_plus',floor:25,cal:'std'};}
+function cScore(b){const band=rb(b.revenue);const rS=Math.min(100,(b.runway/12)*100);const adjD=band.cal==='sub'?Math.min(b.dscr+.15,3):b.dscr;const dS=Math.min(100,(adjD/2)*100);const aS=Math.max(0,100-(b.ar90*2)-Math.max(0,b.ar90-10));const pS=Math.max(0,100-(b.overdue*3)-(b.nsf*10));const sf=cSF(b);const sS=Math.max(0,100-(sf.severe*10));const raw=.25*rS+.25*dS+.20*aS+.15*pS+.15*sS;return{smooth:Math.round(.5*raw+.5*b.prevScore),raw:Math.round(raw),comps:{runway:Math.round(rS),dscr:Math.round(dS),ar:Math.round(aS),pay:Math.round(pS),stress:Math.round(sS)}};}
+function cSF(b){return{base:Math.max(0,+(8-b.runway).toFixed(1)),adverse:Math.max(0,+(8-b.runway*.7+.5).toFixed(1)),severe:Math.max(0,+(8-b.runway*.5+1.5).toFixed(1))};}
+
+/**
+ * cRate now takes the ACTIVE tier string (from HST), not the raw score.
+ * This ensures hysteresis protection flows through to actual pricing.
+ */
+function cRate(b, activeTier){
+  const p={'Green A':100,'Green B':175,'Yellow A':325,'Yellow B':500,'Red':800};
+  const v=Math.min(125,Math.round(b.cv*180));
+  const r=Math.min(120,Math.max(0,Math.round((8-b.runway)*12)));
+  const sf=cSF(b);const st=Math.min(175,Math.round(sf.adverse*18+sf.severe*9));
+  const prop=550+(p[activeTier]||100)+v+r+st;
+  const d=prop-b.currentRate;const cl=Math.max(-150,Math.min(150,d));
+  const db=Math.abs(cl)<20?0:cl;const g=Math.max(700,Math.min(2499,b.currentRate+db));
+  return{guardrailed:g,delta:g-b.currentRate,bd:{tier:p[activeTier]||100,vol:v,rw:r,stress:st}};
+}
+
+function cLimit(b,s,prev){if(cycle==='quarterly')return{guardrailed:b.currentLimit,delta:0,note:'Not assessed this cycle'};const band=rb(b.revenue);const drop=prev-s;let pct=0;if(s>=73&&b.dscr>1.5&&b.runway>=10&&b.utilisation>60)pct=.08;else if(drop>=5&&drop<12)pct=-.07;else if(drop>=12||b.runway<6)pct=-.15;const gp=Math.max(-.20,Math.min(.10,pct));const g=Math.max(band.floor,Math.round(b.currentLimit*(1+gp)));return{guardrailed:g,delta:g-b.currentLimit,deltaPct:pct,needsApproval:pct>.10||pct<-.15};}
+function cCov(cov){if(cov>150)return{label:'Healthy',cls:'cov-healthy',note:'Internal only — no action'};if(cov>100)return{label:'Monitor',cls:'cov-monitor',note:'Included in monthly report'};if(cov>75)return{label:'Escalate',cls:'cov-escalate',note:'Early warning — UW review'};if(cov>50)return{label:'Senior',cls:'cov-senior',note:'Cure notice; legal engaged'};return{label:'Workout',cls:'cov-workout',note:'GSA enforcement evaluated'};}
+
+/**
+ * cRoute receives the activeTier (not raw score tier) so routing decisions
+ * respect the hysteresis grace period — a borrower in pending-downgrade
+ * doesn't get escalated purely because of a one-cycle score dip.
+ */
+function cRoute(b,score,activeTier,prevScore,rD,lP,cL){
+  if((b.runway<4&&cSF(b).adverse>0)||b.nsf>=2||b.overdue>30||(b.ar90>50&&score<35))
+    return{type:'freeze',title:'DRAW FREEZE',reason:'Runway < 4w with shortfall, NSF ≥ 2, overdue > 30d, or AR 90+ > 50% in Red'};
+  if(activeTier==='Red'||Math.abs(score-prevScore)>20||cL==='Senior'||cL==='Workout')
+    return{type:'senior',title:'SENIOR ESCALATION',reason:'Active tier is Red, score moved > 20 pts, or coverage at Senior/Workout level'};
+  if(rD>75||Math.abs(lP||0)>.10||TIER_RANK[activeTier]<TIER_RANK[rawTierFromScore(prevScore)])
+    return{type:'review',title:'UNDERWRITER REVIEW',reason:'Rate Δ > 75 bps, limit Δ > 10%, or active tier downgrade finalised this cycle'};
+  return{type:'auto',title:'AUTO-APPROVED',reason:'All changes within auto-execute thresholds — 10 business day notice to borrower'};
+}
+
+// forecast
+function fData(b){
+  // Historical: 8 weekly actuals leading up to W0
+  const startBal=Math.max(b.cashBalance*.58,20000);
+  const seeds=[.90,1.06,.85,1.14,.93,1.10,.80,1.0];
+  const hist=[];let bal=startBal;
+  for(let i=0;i<8;i++){bal=Math.max(0,Math.round(bal+b.weeklyNetCF*seeds[i]));hist.push(bal);}
+  // W0 = today's actual cash balance (last point of history)
+  const cur=b.cashBalance;
+  // Forecast lines: null for W-8..W-1, then start at W0 and diverge W+1..W+6
+  // 15 points total: indices 0-7 = W-8..W-1, index 8 = W0, indices 9-14 = W+1..W+6
+  const base=Array(8).fill(null);
+  const adv=Array(8).fill(null);
+  const sev=Array(8).fill(null);
+  // All three share the W0 anchor
+  base.push(cur);adv.push(cur);sev.push(cur);
+  // W+1 to W+6: each scenario uses a different weekly CF multiplier
+  for(let i=1;i<=6;i++){
+    base.push(Math.max(0,Math.round(cur+b.weeklyNetCF*i)));
+    adv.push(Math.max(0,Math.round(cur+b.weeklyNetCF*.60*i)));
+    sev.push(Math.max(0,Math.round(cur+b.weeklyNetCF*.25*i-(4000*i))));
+  }
+  return{hist,cur,base,adv,sev};
+}
+
+// ── RENDER ────────────────────────────────────────────────────────────────────
+const fmt=n=>new Intl.NumberFormat('en-CA',{style:'currency',currency:'CAD',maximumFractionDigits:0}).format(n);
+
+function setCycle(c){cycle=c;document.querySelectorAll('.c-btn').forEach((b,i)=>b.classList.toggle('active',['monthly','quarterly'][i]===c));render();}
+
+function selectBorrower(id){cur=id;renderLeft();render();}
+
+function renderLeft(){
+  document.getElementById('borrowerList').innerHTML=Object.values(BW).map(b=>{
+    const sc=cScore(b);
+    const hst=HST[b.id];
+    const activeTier=hst.activeTier;
+    const tcl=tC(activeTier);
+    const isPending=hst.pendingDowngrade!==null;
+    return`<div class="bcard tier-${tcl}${b.id===cur?' active':''}" onclick="selectBorrower('${b.id}')">
+      <div class="bc-row"><div class="bc-name">${b.name}</div><div class="bc-score">${sc.smooth}</div></div>
+      <div class="bc-sector">${b.sector}</div>
+      <div class="bc-badges">
+        <span class="tier-pill">${activeTier}</span>
+        ${isPending?`<span style="font-family:var(--mono);font-size:8px;color:var(--yellow);border:1px solid var(--yellow2);background:var(--ybg);padding:1px 5px;letter-spacing:.04em">⏳ PENDING</span>`:''}
+        <span class="band-label">${rb(b.revenue).key.replace('band_','').replace('_','-')}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function render(){
+  renderLeft();
+  const b=BW[cur];const sc=cScore(b);const sf=cSF(b);
+  // ── Resolve tier through hysteresis state machine (read-only in render) ──
+  // In render() we preview what the next cycle WOULD produce but don't commit
+  // the state mutation — that only happens inside runCycle().
+  const hst=HST[b.id];
+  const activeTier=hst.activeTier;
+  const rawTier=rawTierFromScore(sc.smooth);
+  const tcl=tC(activeTier);
+  const ti=activeTier; // all UI labels use activeTier
+  const band=rb(b.revenue);
+  // Rate adders driven by activeTier (hysteresis-protected)
+  const rr=cRate(b,activeTier);
+  const lr=cLimit(b,sc.smooth,b.prevScore);
+  const ca=cCov(b.coverage);
+  const rt=cRoute(b,sc.smooth,activeTier,b.prevScore,rr.delta,lr.deltaPct,ca.label);
+
+  document.getElementById('chName').textContent=b.name;
+  document.getElementById('chSub').textContent=`Loan #${b.loan} · $${b.currentLimit}K Facility · ${b.sector}`;
+  document.getElementById('chBand').textContent=band.key;
+  const sb=document.getElementById('statusBadge');
+  sb.textContent=rt.title;
+  sb.className=`status-badge badge-${rt.type}`;
+
+  // EW bar
+  const warn=b.runway<8||b.ar90>25||b.cv>.25||b.dscr<1.3||b.overdue>0||b.nsf>0;
+  const crit=b.runway<4||b.nsf>=2||b.dscr<1||b.overdue>15||b.ar90>45;
+  const ewBar=document.getElementById('ewBar');
+  if(warn){ewBar.classList.add('show');document.getElementById('ewText').textContent=(crit?'● CRITICAL: ':'')+[b.nsf>=2?'NSF ≥ 2':'',b.runway<4?'Runway < 4w':'',b.dscr<1?'DSCR < 1.0':'',b.overdue>15?'Overdue > 15d':'',b.runway<8&&b.runway>=4?'Runway < 8w':'',b.ar90>25&&b.ar90<=45?'AR aging drift':''].filter(Boolean).join(' · ')+' — Early warning indicators active';}
+  else ewBar.classList.remove('show');
+
+  // warn tags
+  const wts=[{lb:'Runway Slope',ac:b.runway<8,cr:b.runway<4},{lb:'AR Aging',ac:b.ar90>25,cr:b.ar90>45},{lb:'Volatility',ac:b.cv>.25,cr:b.cv>.40},{lb:'DSCR Erosion',ac:b.dscr<1.3,cr:b.dscr<1},{lb:'Overdue',ac:b.overdue>0,cr:b.overdue>15},{lb:'NSF Events',ac:b.nsf>0,cr:b.nsf>=2},{lb:'Expense Creep',ac:false,cr:false},{lb:'AP Stretch',ac:false,cr:false},{lb:'Coverage Alert',ac:ca.label!=='Healthy',cr:ca.label==='Senior'||ca.label==='Workout'}];
+  document.getElementById('warnTags').innerHTML=wts.map(w=>`<span class="wtag ${w.cr?'wc':w.ac?'wa':'wn'}">${w.cr?'●':w.ac?'◎':'○'} ${w.lb}</span>`).join('');
+
+  // forecast data
+  const fd=fData(b);
+  const floor=80000;
+  const stressRows=[
+    {l:'Base',imp:'—',w4:fd.base[12],w6:fd.base[14]},
+    {l:'Adverse (−20% rev)',imp:`−${fmt(Math.abs(b.weeklyNetCF*.35*4))}/mo`,w4:fd.adv[12],w6:fd.adv[14]},
+    {l:'Severe (−40% rev)',imp:`−${fmt(Math.abs(b.weeklyNetCF*.65*4))}/mo`,w4:fd.sev[12],w6:fd.sev[14]},
+  ];
+  const stSt=v=>v>floor*1.5?'<span class="sp">PASS</span>':v>floor?'<span class="sw">MARGINAL</span>':'<span class="sf">FAIL</span>';
+
+  // rate / limit cards
+  const rC=rr.delta>0?'var(--red)':rr.delta<0?'var(--green)':'var(--text2)';
+  const rDs=rr.delta===0?'→ dead-band (no change)':(rr.delta>0?`▲ +${rr.delta} bps`:`▼ ${Math.abs(rr.delta)} bps`);
+  const lC=lr.delta>0?'var(--green)':lr.delta<0?'var(--red)':'var(--text2)';
+  const lDs=lr.note||(lr.delta===0?'→ no change':(lr.delta>0?`▲ +$${lr.delta}K`:`▼ $${Math.abs(lr.delta)}K`));
+
+  // history
+  const actCls={auto:'a-auto',cut:'a-cut',hold:'a-hold',human:'a-human',freeze:'a-freeze'};
+  const actLbl={auto:'AUTO-APPROVED',cut:'RATE CUT',hold:'HOLD',human:'HUMAN REVIEW',freeze:'DRAW FREEZE'};
+  const histRows=b.history.map((h,i)=>{
+    const sc2=h.s>=65?'var(--green)':h.s>=35?'var(--yellow)':'var(--red)';
+    const tt=h.t.toLowerCase().startsWith('green')?'tg':h.t.toLowerCase().startsWith('yellow')?'ty':'tr';
+    return`<tr class="${i===0?'cur':''}"><td style="color:var(--text2)">${h.m}</td><td style="color:${sc2};font-weight:600">${h.s}</td><td><span class="tier-tag ${tt}">${h.t.toUpperCase()}</span></td><td>${h.r.toFixed(2)}%</td><td>${fmt(h.l*1000)}</td><td>${h.c.toFixed(2)}×</td><td><span class="act ${actCls[h.a]}">${actLbl[h.a]}</span></td></tr>`;
+  }).join('');
+
+  // memo
+  const memo=buildMemo(b,sc,ti,activeTier,rawTier,hst,rt,sf,rr,lr,ca);
+
+  document.getElementById('centerContent').innerHTML=`
+  <div class="kpi-row fi">
+    <div class="kpi"><div class="kpi-label">Cash Balance</div><div class="kpi-val">${fmt(b.cashBalance)}</div><div class="kpi-sub">Runway: ${b.runway.toFixed(1)} wks</div></div>
+    <div class="kpi"><div class="kpi-label">Credit Available</div><div class="kpi-val acc">${fmt(b.creditLimit*1000*(1-b.utilisation/100))}</div><div class="kpi-sub">of ${fmt(b.creditLimit*1000)} · ${b.utilisation}% utilised</div></div>
+    <div class="kpi"><div class="kpi-label">AR / AP</div><div class="kpi-val">${fmt(b.ar)}</div><div class="kpi-sub">AP: ${fmt(b.ap)} · Ratio: ${(b.ar/b.ap).toFixed(2)}×</div></div>
+    <div class="kpi"><div class="kpi-label">Avg Weekly Net CF</div><div class="kpi-val ${b.weeklyNetCF>=0?'pos':'neg'}">${b.weeklyNetCF>=0?'+':''}${fmt(b.weeklyNetCF)}</div><div class="kpi-sub">Trailing 4 weeks</div></div>
+  </div>
+
+  <div class="mid-row fi">
+    <div class="chart-panel">
+      <div class="panel-title">Cash Forecast — 6-Week Projection</div>
+      <div class="chart-wrap"><canvas id="fcChart"></canvas></div>
+    </div>
+    <div class="stress-panel">
+      <div class="panel-title">Stress Test Scenarios</div>
+      <table class="st"><thead><tr><th>Scenario</th><th>Rev Impact</th><th>Wk 4</th><th>Wk 6</th><th>Status</th></tr></thead>
+      <tbody>${stressRows.map(r=>`<tr><td class="scen">${r.l}</td><td class="${r.imp.startsWith('−')?'neg':''}">${r.imp}</td><td>${fmt(r.w4)}</td><td>${fmt(r.w6)}</td><td>${stSt(r.w6)}</td></tr>`).join('')}</tbody></table>
+    </div>
+  </div>
+
+  <div class="pipe-panel fi">
+    <div class="panel-title">AI Triage Pipeline — 10 Layers</div>
+    <div class="pipe-track">${PIPE.map((p,i)=>`<div class="pipe-step done" id="pp${i}"><div class="pipe-icon">${p.ic}</div><div class="pipe-lbl">${p.lb}</div></div>`).join('')}</div>
+  </div>
+
+  <div class="decision ${rt.type} fi">
+    <div class="dec-kicker ${rt.type}">AI Triage Decision · ${ti} Tier (Active)</div>
+    <div class="dec-title">${rt.title}</div>
+    <div class="dec-reason">${rt.reason}</div>
+    <div class="dec-bullets">
+      <div class="dec-bullet">Monthly financial re-submission required</div>
+      <div class="dec-bullet">Draw utilisation monitored — alert triggers at &gt;80%</div>
+      <div class="dec-bullet">Continuous underwriting active — monthly re-score</div>
+      ${rt.type!=='auto'?`<div class="dec-bullet">${rt.type==='freeze'?'Draw facility suspended pending senior review':'Senior Underwriter sign-off required before execution'}</div>`:''}
+    </div>
+  </div>
+
+  <div class="hist-panel fi">
+    <div class="panel-title" style="margin-bottom:8px">Monthly Assessment Output</div>
+    <div class="score-bar-row">
+      <div class="sbar-bg"><div class="sbar-fill" style="width:${sc.smooth}%"></div></div>
+      <div class="score-num" style="color:${tcl==='green'?'var(--green)':tcl==='yellow'?'var(--yellow)':'var(--red)'}">${sc.smooth} / 100</div>
+      <span class="tier-tag ${tcl==='green'?'tg':tcl==='yellow'?'ty':'tr'}">${ti} (active)</span>
+      ${rawTier!==activeTier?`<span class="tier-tag" style="color:var(--text3);border-color:var(--border);font-size:9px">${rawTier} (raw)</span>`:''}
+    </div>
+
+    <!-- Hysteresis status banner -->
+    ${hst.pendingDowngrade?`
+    <div style="background:rgba(255,214,0,.06);border:1px solid var(--yellow2);padding:8px 12px;margin-bottom:10px;display:flex;align-items:flex-start;gap:10px">
+      <span style="color:var(--yellow);font-size:14px;line-height:1.2">⏳</span>
+      <div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--yellow);letter-spacing:.1em;text-transform:uppercase;font-weight:600;margin-bottom:2px">Hysteresis Grace Period Active — T=2 Downgrade Rule</div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text2);line-height:1.6">Raw score (${sc.smooth}) maps to <strong style="color:var(--text)">${rawTier}</strong> but active tier is held at <strong style="color:var(--text)">${activeTier}</strong>. Breach month ${hst.consecutiveMonthsBelow}/2. If score remains below threshold next cycle, tier downgrade to <strong style="color:var(--yellow)">${hst.pendingDowngrade}</strong> will finalise. Terms and pricing remain anchored to ${activeTier} this cycle.</div>
+      </div>
+    </div>`:''}
+    ${!hst.pendingDowngrade&&rawTier===activeTier?`
+    <div style="background:rgba(0,230,118,.04);border:1px solid var(--green2);padding:6px 12px;margin-bottom:10px">
+      <div style="font-family:var(--mono);font-size:9px;color:var(--green);letter-spacing:.08em">✓ HYSTERESIS STABLE — Score corroborates active tier · No pending transitions</div>
+    </div>`:''}
+    ${!hst.pendingDowngrade&&rawTier!==activeTier&&TIER_RANK[rawTier]>TIER_RANK[activeTier]?`
+    <div style="background:rgba(0,230,118,.04);border:1px solid var(--green2);padding:6px 12px;margin-bottom:10px">
+      <div style="font-family:var(--mono);font-size:9px;color:var(--green);letter-spacing:.08em">▲ T=1 UPGRADE ELIGIBLE — Raw score maps to ${rawTier} · Upgrade fires immediately next cycle run</div>
+    </div>`:''}
+
+    <div class="score-breakdown">
+      <div class="sbd">Runway: <span>${sc.comps.runway}</span></div>
+      <div class="sbd">DSCR: <span>${sc.comps.dscr}</span></div>
+      <div class="sbd">AR Health: <span>${sc.comps.ar}</span></div>
+      <div class="sbd">Payment: <span>${sc.comps.pay}</span></div>
+      <div class="sbd">Stress: <span>${sc.comps.stress}</span></div>
+      <div class="sbd">EWMA α: <span>0.5</span></div>
+    </div>
+    <div class="tc-row">
+      <div class="tc rate"><div class="tc-lbl">Interest Rate <span class="cad cad-m">Monthly</span></div><div class="tc-val">${(rr.guardrailed/100).toFixed(2)}%</div><div class="tc-delta" style="color:${rC}">${rDs}</div><div class="tc-note">Tier ${rr.bd.tier}bps · Vol ${rr.bd.vol}bps · RW ${rr.bd.rw}bps · Stress ${rr.bd.stress}bps<br>±150bps cap · 20bps dead-band · 10bd notice</div></div>
+      <div class="tc limit"><div class="tc-lbl">Credit Limit <span class="cad cad-m">Monthly</span></div><div class="tc-val">${fmt(lr.guardrailed*1000)}</div><div class="tc-delta" style="color:${lC}">${lDs}</div><div class="tc-note">${lr.needsApproval?'⚠ Senior approval required':'✓ Auto-execute threshold'}<br>Floor $${band.floor}K · 15d notice reductions</div></div>
+      <div class="tc cov"><div class="tc-lbl">Collateral <span class="cad cad-i">Internal Only</span></div><div class="tc-val" style="color:var(--orange)">${b.coverage}%</div><div class="tc-delta" style="color:var(--text2)">PPSA GSA — fixed at origination</div><div class="tc-note"><span class="cov-tag ${ca.cls}">● ${ca.label}</span><br>${ca.note}<br>Enforcement = human + PPSA Part V</div></div>
+      <div class="tc nxt"><div class="tc-lbl">Next Review <span class="cad cad-c">Calendar</span></div><div class="tc-val" style="color:#b388ff;font-size:18px">Apr 1, 2026</div><div class="tc-delta" style="color:var(--text2)">Monthly cycle</div><div class="tc-note">Rate: 10bd notice<br>Limit: 15d for reductions<br>Collateral: monitoring only</div></div>
+    </div>
+    <div class="panel-title" style="margin:12px 0 8px">Term History — Last 6 Months</div>
+    <table class="ht"><thead><tr><th>Month</th><th>Score</th><th>Tier</th><th>Rate</th><th>Limit</th><th>Coverage</th><th>Action</th></tr></thead>
+    <tbody>${histRows}</tbody></table>
+    <div class="hist-footer">🤖 AI proposes · 👤 Humans approve overrides · Capital deployment is exclusively human · All changes audit-logged with model version + explanation</div>
+  </div>
+
+  <div class="memo-panel fi">
+    <div class="panel-title">AI-Generated Underwriting Memo</div>
+    <div class="memo-body">${memo}</div>
+  </div>
+  `;
+
+  setTimeout(()=>drawChart(b,fd),40);
+}
+
+function drawChart(b,fd){
+  const ctx=document.getElementById('fcChart');
+  if(!ctx)return;
+  if(chartInst){chartInst.destroy();chartInst=null;}
+  // Labels: W-8 W-7 … W-1 W0 W+1 … W+6  (15 total)
+  const labels=[...Array(8)].map((_,i)=>`W−${8-i}`).concat(['W0']).concat([...Array(6)].map((_,i)=>`W+${i+1}`));
+  // Forecast lines: full 15 points (match history W-8..W0, then diverge)
+  chartInst=new Chart(ctx,{
+    type:'line',
+    data:{labels,datasets:[
+      {label:'Historical',data:[...fd.hist,fd.cur,...Array(6).fill(null)],borderColor:'#00d4ff',backgroundColor:'rgba(0,212,255,.07)',borderWidth:2.5,pointRadius:3,pointBackgroundColor:'#00d4ff',tension:.35,fill:true,order:5},
+      {label:'Base Forecast',data:fd.base,borderColor:'rgba(0,230,118,.9)',borderDash:[7,3],borderWidth:2,pointRadius:(ctx)=>ctx.dataIndex>=8?2.5:0,pointBackgroundColor:'rgba(0,230,118,.9)',tension:.35,fill:false,order:4},
+      {label:'Adverse',data:fd.adv,borderColor:'rgba(255,214,0,.8)',borderDash:[4,4],borderWidth:1.5,pointRadius:(ctx)=>ctx.dataIndex>=8?2:0,pointBackgroundColor:'rgba(255,214,0,.8)',tension:.35,fill:false,order:3},
+      {label:'Severe',data:fd.sev,borderColor:'rgba(255,80,80,.8)',borderDash:[3,5],borderWidth:1.5,pointRadius:(ctx)=>ctx.dataIndex>=8?2:0,pointBackgroundColor:'rgba(255,80,80,.8)',tension:.35,fill:false,order:2},
+      {label:'Floor ($80K)',data:Array(15).fill(80000),borderColor:'rgba(255,61,61,.25)',borderDash:[2,7],borderWidth:1,pointRadius:0,fill:false,order:1},
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{display:true,position:'top',labels:{color:'#7898b8',font:{family:'IBM Plex Mono',size:9},boxWidth:22,padding:14}},
+        tooltip:{backgroundColor:'#141c2a',borderColor:'#1e2d44',borderWidth:1,titleColor:'#c8d8e8',bodyColor:'#7898b8',titleFont:{family:'IBM Plex Mono',size:9},bodyFont:{family:'IBM Plex Mono',size:9},callbacks:{label:c=>c.parsed.y!=null?`${c.dataset.label}: ${fmt(c.parsed.y)}`:null,filter:i=>i.parsed.y!=null}},
+        annotation:{annotations:{nowLine:{type:'line',xMin:'W0',xMax:'W0',borderColor:'rgba(200,216,232,.25)',borderWidth:1.5,borderDash:[4,4],label:{content:'Today',display:true,position:'start',color:'#7898b8',font:{family:'IBM Plex Mono',size:8},backgroundColor:'transparent',padding:2}}}}
+      },
+      scales:{
+        x:{grid:{color:(ctx)=>ctx.tick.label==='W0'?'rgba(200,216,232,.2)':'rgba(30,45,68,.5)'},ticks:{color:(ctx)=>ctx.tick.label==='W0'?'#c8d8e8':'#3a5570',font:{family:'IBM Plex Mono',size:8},maxRotation:0},border:{color:'#1e2d44'}},
+        y:{grid:{color:'rgba(30,45,68,.5)'},ticks:{color:'#3a5570',font:{family:'IBM Plex Mono',size:8},callback:v=>v>=1000?'$'+(v/1000).toFixed(0)+'K':'$'+v},border:{color:'#1e2d44'}}
+      }
+    }
+  });
+}
+
+function buildMemo(b,sc,ti,activeTier,rawTier,hst,rt,sf,rr,lr,ca){
+  const ds=new Date().toLocaleDateString('en-CA',{year:'numeric',month:'long',day:'numeric'});
+  const tierNote=hst.pendingDowngrade
+    ?`\nHYSTERESIS: Raw score maps to ${rawTier} but active tier preserved at ${activeTier} under T=2 downgrade rule (breach month ${hst.consecutiveMonthsBelow}/2). Terms anchored to ${activeTier} this cycle.`
+    :rawTier!==activeTier&&TIER_RANK[rawTier]>TIER_RANK[activeTier]
+      ?`\nT=1 UPGRADE: Score qualifies for ${rawTier}. Upgrade fires immediately this cycle.`
+      :``;
+  return`UNDERWRITING MEMO — ${b.name}
+Date: ${ds}  |  Analyst: AI Triage Engine v2.0  |  Band: ${rb(b.revenue).key}  |  Active Tier: ${activeTier.toUpperCase()}  |  Raw Tier: ${rawTier.toUpperCase()}
+
+<strong>SUMMARY</strong>
+${b.name} presents a ${activeTier.startsWith('Green')?'strong':'deteriorating'} credit profile. Cash runway of ${b.runway.toFixed(1)} weeks ${b.runway>=8?'exceeds':'is below'} the 8-week threshold. DSCR of ${b.dscr.toFixed(2)} ${b.dscr>=1?'covers':'fails to cover'} debt obligations. Revenue CV of ${b.cv.toFixed(2)} ${b.cv<.25?'is within bounds':'warrants elevated monitoring'}.${tierNote}
+
+<strong>STRESS TEST RESULTS</strong>
+Adverse (−20% rev): ${sf.adverse<=0?'No shortfall — PASS':'Shortfall '+sf.adverse.toFixed(1)+'w — FLAG'}.
+Severe (−40% rev): ${sf.severe<=0?'No shortfall — PASS':'Shortfall '+sf.severe.toFixed(1)+'w — FLAG'}.
+
+<strong>PROPOSED TERMS (anchored to active tier: ${activeTier})</strong>
+Rate: ${(b.currentRate/100).toFixed(2)}% → ${(rr.guardrailed/100).toFixed(2)}% (Δ ${rr.delta>=0?'+':''}${rr.delta} bps). Tier adder: ${rr.bd.tier}bps (${activeTier}) + ${rr.bd.vol}bps vol + ${rr.bd.rw}bps runway + ${rr.bd.stress}bps stress.
+Limit: ${fmt(b.currentLimit*1000)} → ${fmt(lr.guardrailed*1000)}. ${lr.note||''} ${lr.needsApproval?'Requires Senior Underwriter approval.':'Within auto-execute threshold.'}
+Collateral: PPSA GSA fixed at origination. Coverage ${b.coverage}% — ${ca.label}. ${ca.note}.
+
+<strong>DECISION</strong>
+Routing: ${rt.title}. ${rt.reason}.
+${rt.type==='auto'?'Terms applied with 10 business day notice. No human approval required this cycle.':rt.type==='freeze'?'Draw facility suspended. Senior Underwriter must confirm within 24 hours.':'All changes require human approval before execution.'}`;
+}
+
+// ── CYCLE RUNNER ─────────────────────────────────────────────────────────────
+async function runCycle(){
+  const b=BW[cur];const btn=document.getElementById('runBtn');
+  btn.classList.add('running');btn.textContent='◌ Running…';
+  const steps=['INGEST — CSV + bank feed (Plaid/Flinks)','NORMALISE — COA standardisation + LTM','FORECAST — 6-week liquidity projection','STRESS — Base / Adverse / Severe','SCORE — Composite risk score (α=0.5)','COVERAGE — PPSA GSA ratio classification','TERMS — Rate + limit (anchored to active tier)','GUARDRAILS — Caps, floors, dead-band','ROUTE — Decision authority assignment','AUDIT — 41-field log + disclosure hash'];
+  document.getElementById('overlay').classList.add('on');
+  document.getElementById('ps-list').innerHTML=steps.map((s,i)=>`<div class="ps" id="pss${i}"><span class="ps-ic">○</span>${s}</div>`).join('');
+  document.querySelectorAll('[id^=pp]').forEach(el=>{el.classList.remove('done','active');});
+  for(let i=0;i<steps.length;i++){
+    const ps=document.getElementById('pss'+i);const pp=document.getElementById('pp'+i);
+    ps.className='ps act';ps.querySelector('.ps-ic').textContent='▶';
+    if(pp){pp.classList.remove('done');pp.classList.add('active');}
+    await sleep(195);
+    ps.className='ps dn';ps.querySelector('.ps-ic').textContent='✓';
+    if(pp){pp.classList.remove('active');pp.classList.add('done');}
+    await sleep(145);
+  }
+  await sleep(250);
+  document.getElementById('overlay').classList.remove('on');
+
+  // ── Commit hysteresis state mutation for this cycle ──
+  const sc=cScore(b);
+  const tierResult=resolveTier(b.id, sc.smooth); // mutates HST[b.id]
+  const activeTier=tierResult.activeTier;
+  const rawTier=tierResult.rawTier;
+
+  // All pricing and routing now use the resolved activeTier
+  const rr=cRate(b,activeTier);
+  const lr=cLimit(b,sc.smooth,b.prevScore);
+  const ca=cCov(b.coverage);
+  const rt=cRoute(b,sc.smooth,activeTier,b.prevScore,rr.delta,lr.deltaPct,ca.label);
+  const d=sc.smooth-b.prevScore;
+  const ts=new Date().toISOString().replace('T',' ').slice(0,19);
+  logCount++;document.getElementById('logCnt').textContent=logCount+' entries';
+
+  const rCls={auto:'hg',review:'hy',senior:'hy',freeze:'hr'}[rt.type];
+
+  // ── Build audit entries including hysteresis event entry ──
+  const hysteresisEntry=()=>{
+    if(tierResult.event==='hysteresis_pending')
+      return{t:'lw',m:`<span class="hy">⏳ HYSTERESIS TRIGGERED</span> · Score (${sc.smooth}) maps to <strong>${rawTier}</strong> but active tier held at <strong>${activeTier}</strong> · T=2 rule · Grace period initiated · Breach month ${HST[b.id].consecutiveMonthsBelow}/2 · Downgrade pending next cycle`};
+    if(tierResult.event==='downgrade')
+      return{t:'la',m:`<span class="hr">▼ TIER DOWNGRADE FINALISED</span> · T=2 rule satisfied · ${tierResult.prevTier} → <strong>${activeTier}</strong> · Two consecutive months below threshold · Terms repriced to ${activeTier} adder`};
+    if(tierResult.event==='upgrade')
+      return{t:'lo',m:`<span class="hg">▲ TIER UPGRADE</span> · T=1 immediate execution · ${tierResult.prevTier} → <strong>${activeTier}</strong> · Score (${sc.smooth}) exceeds ${activeTier} threshold · Pending downgrade cleared`};
+    if(tierResult.event==='hysteresis_cleared')
+      return{t:'lo',m:`<span class="hg">✓ HYSTERESIS CLEARED</span> · Score recovered to ${rawTier} tier range · Pending downgrade cancelled · Active tier ${activeTier} confirmed stable`};
+    return null; // stable — no special entry needed
+  };
+
+  const entries=[
+    {t:'li',m:`<span class="hl">CYCLE START</span> · ${cycle.toUpperCase()} · ${b.name} · ${rb(b.revenue).key}`},
+    {t:'li',m:`Score: <span class="hl">${sc.smooth}</span> smooth · Raw: ${sc.raw} · <span class="${d>=0?'hg':'hr'}">${d>=0?'+':''}${d} vs prior</span>`},
+    {t:'li',m:`Tier: Active <span class="hl">${activeTier}</span> · Raw score maps to <span class="${rawTier!==activeTier?'hy':'hg'}">${rawTier}</span>${rawTier!==activeTier?' (hysteresis override)':''}`},
+    hysteresisEntry(),
+    {t:'li',m:`Rate: ${(b.currentRate/100).toFixed(2)}% → <span class="hl">${(rr.guardrailed/100).toFixed(2)}%</span> (Δ <span class="${rr.delta>0?'hr':rr.delta<0?'hg':''}">${rr.delta>=0?'+':''}${rr.delta}bps</span>) · Tier adder: ${rr.bd.tier}bps (${activeTier})`},
+    {t:'li',m:`Limit: ${fmt(b.currentLimit*1000)} → <span class="hl">${fmt(lr.guardrailed*1000)}</span> · Coverage ${b.coverage}% → <span class="hl">${ca.label}</span>`},
+    ca.label!=='Healthy'?{t:'lw',m:`Coverage alert: <span class="hy">${ca.label}</span> · ${ca.note}`}:null,
+    {t:rt.type==='auto'?'lo':rt.type==='freeze'?'la':'lw',m:`Routing: <span class="${rCls}">${rt.title}</span>`},
+    rt.type==='auto'?{t:'lo',m:`Notice scheduled · 10bd · disclosure_hash: ${rH()}`}:null,
+    {t:'li',m:`Audit #${String(logCount).padStart(4,'0')} · input_hash: ${rH()} · model: v2.0.1 · hyst_state: ${tierResult.event}`},
+  ].filter(Boolean);
+
+  const logEl=document.getElementById('auditLog');
+  logEl.querySelector('.empty-log')?.remove();
+  const frag=document.createDocumentFragment();
+  entries.reverse().forEach(e=>{const el=document.createElement('div');el.className=`log-entry ${e.t}`;el.innerHTML=`<div class="log-ts">${ts} UTC · ${cycle.toUpperCase()}</div><div class="log-msg">${e.m}</div>`;frag.appendChild(el);});
+  const dv=document.createElement('div');dv.className='log-div';frag.appendChild(dv);
+  logEl.insertBefore(frag,logEl.firstChild);logEl.scrollTop=0;
+
+  render();btn.classList.remove('running');btn.textContent='▶ Run Monthly Re-Score';
+}
+
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+function rH(){return[...Array(8)].map(()=>Math.floor(Math.random()*16).toString(16)).join('')+'…';}
+
+// ── INIT ─────────────────────────────────────────────────────────────────────
+renderLeft();render();
+</script>
+</body>
+</html>
